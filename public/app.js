@@ -1,0 +1,11 @@
+const $=id=>document.getElementById(id);
+const phone=$('phone'),status=$('connstatus'),box=$('qrbox');
+const valid=s=>/^\+\d{5,15}$/.test(s);
+const busy=(btn,value)=>btn.disabled=value;
+async function api(route,method='GET',data){const r=await fetch('/api/'+route,{method,headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,cache:'no-store'});const j=await r.json();if(!r.ok)throw Error((j.error||j.info||'Erreur')+' (HTTP '+r.status+')');return j;}
+let lastQR='';
+async function poll(){try{const s=await api('state');status.textContent=s.status||'En attente';if(s.phone&&!phone.value)phone.value=s.phone;if(s.qr && s.qr!==lastQR){lastQR=s.qr;box.innerHTML='';const img=document.createElement('img');img.alt='QR de connexion WhatsApp';img.src=s.qr;box.appendChild(img);}if(!s.qr&&lastQR){lastQR='';box.innerHTML='<div class="emptyicon">▦</div><p class="hint">'+(s.status==='open'?'WhatsApp connecté avec succès.':'En attente d’un nouveau QR code…')+'</p>';}}catch(e){status.textContent='Dashboard indisponible';}}
+$('connect').onclick=async()=>{if(!valid(phone.value.trim())){alert('Format attendu : +212612345678');return;}busy($('connect'),true);$('connectinfo').textContent='Connexion en cours…';try{const j=await api('connect','POST',{phone:phone.value.trim()});$('connectinfo').textContent=j.info+' Si aucun QR n’apparaît, voir le README (session déjà créée).';poll();}catch(e){$('connectinfo').textContent=e.message}finally{busy($('connect'),false)}};
+$('check').onclick=async()=>{try{const j=await api('check');$('sendinfo').textContent=j.ok?'Clé API valide.':'Authentification refusée.'}catch(e){$('sendinfo').textContent=e.message}};
+$('send').onclick=async()=>{const to=$('to').value.trim(),msg=$('message').value.trim(),from=phone.value.trim();if(!valid(to)||!valid(from)||!msg){alert('Vérifiez le numéro connecté, le destinataire et le message.');return;}busy($('send'),true);$('sendinfo').textContent='Envoi en cours…';try{const j=await api('send','POST',{phone:from,to,message:msg});$('sendinfo').textContent=j.info+(j.result?.data?.key?.id?' ID: '+j.result.data.key.id:'')}catch(e){$('sendinfo').textContent=e.message}finally{busy($('send'),false)}};
+poll();setInterval(poll,3000);
